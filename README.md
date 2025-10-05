@@ -24,7 +24,7 @@ That’s it—you now have a visual countdown and a calendar view for the same p
 
 ## How I use it (and how you might too)
 
-For research projects—like my hydrogen storage experiments—I keep the start date at the beginning of the campaign and set the goal to the expected handover or milestone review. The day hand gives me a quick sense of overall progress, while the calendar is great for spotting empty windows for experiments, equipment maintenance, or data analysis sprints.
+For research projects (like my hydrogen storage experiments) I keep the start date at the beginning of the campaign and set the goal to the expected handover or milestone review. The day hand gives me a quick sense of overall progress, while the calendar is great for spotting empty windows for experiments, equipment maintenance, or data analysis sprints.
 
 Feel free to adapt it for grant timelines, lab booking schedules, or personal milestones. The styling is compact enough to embed in other dashboards if you need it somewhere else.
 
@@ -37,3 +37,5 @@ The entire app lives in `dual_project_time_visualization_clock_calendar.html`. A
 * Local timezone detection happens during initialization, and the page re-renders responsive layouts on window resize.
 
 If you decide to fork this for your own lab, let me know what you build with it!
+
+Credits: GPT, Perplexity.
