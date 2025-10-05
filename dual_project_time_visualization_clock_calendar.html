@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dual Project Time Visualization</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{ --bg:#0b0d10; --fg:#e6e9ef; --muted:#aab3c2; --accent:#7c9cff; --accent2:#5eead4; --glass:#ffffff14; --glassBorder:#ffffff3a; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;background:linear-gradient(180deg,#0a0c10,#0a0c10 40%,#0b1220);color:var(--fg)}
+    a{color:var(--accent)}
+    .container{max-width:1200px;margin:0 auto;padding:20px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+    .tab{padding:10px 14px;border:1px solid #1f2733;border-radius:12px;background:#0f1420;color:var(--fg);cursor:pointer}
+    .tab.active{background:linear-gradient(135deg,#0f172a,#111827);border-color:#2a3446;box-shadow:0 0 0 1px #2a3446 inset}
+    .panel{display:none}
+    .panel.active{display:block}
+    .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0 6px}
+    .field{display:flex;flex-direction:column;gap:6px;background:#0f1420;border:1px solid #1f2733;border-radius:14px;padding:12px}
+    .field label{font-size:12px;color:var(--muted)}
+    input, select{background:#0b0f17;border:1px solid #1f2733;border-radius:10px;color:var(--fg);padding:10px}
+    .inline{display:flex;gap:10px;align-items:center}
+    .meta{color:var(--muted);font-size:12px}
+
+    /* Left overlay drawer for Controls (no layout shift) */
+    .controls-panel{position:fixed; top:clamp(56px, 10vh, 96px); left:max(16px, calc(50% - 590px)); width:360px; max-width:92vw; max-height:calc(100vh - 130px); overflow:auto; background:var(--glass); border:1px solid var(--glassBorder); border-radius:20px; padding:12px; box-shadow:0 18px 60px rgba(0,0,0,.45); transform:translateX(-120%); transition:transform .18s ease; z-index:50; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px)}
+    .controls-panel.open{transform:translateX(0)}
+    .controls-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+    .controls-close{background:#121a27;border:1px solid #253145;border-radius:10px;color:var(--fg);padding:6px 10px;cursor:pointer}
+    .scrim{position:fixed; inset:0; background:rgba(0,0,0,.28); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:40}
+    .scrim.show{opacity:1; pointer-events:auto}
+
+    /* CLOCKS → glass cards like the sample */
+    .clock-grid{display:grid;grid-template-columns:repeat(2,minmax(280px,1fr));gap:28px;align-items:start;justify-items:center;margin:18px 0}
+    @media (max-width:830px){ .clock-grid{grid-template-columns:1fr} }
+    .clock-card{width:100%;max-width:540px;padding:18px;border-radius:24px;background:var(--glass);border:1px solid var(--glassBorder);box-shadow:0 25px 60px rgba(0,0,0,.45), inset 0 1px 0 #ffffff20;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:flex;flex-direction:column;align-items:center;gap:14px}
+    .clock-title{align-self:flex-start;margin:2px 6px 0 6px;color:#f3f4f7;font-weight:700;opacity:.95}
+
+    .clock{width:min(520px,84vw);aspect-ratio:1;border-radius:26px;background:radial-gradient(circle at 50% 50%, #1a2030 0%, #0f1522 60%, #0c111b 100%);position:relative;border:1px solid #243047;box-shadow:inset 0 10px 60px rgba(255,255,255,.05), inset 0 -20px 80px rgba(0,0,0,.35)}
+    .sweep{position:absolute;inset:12px;border-radius:50%;opacity:.55;transition:background .2s linear;transform:rotate(-90deg);transform-origin:50% 50%;pointer-events:none}
+
+    /* white ticks like the sample */
+    .tick{position:absolute;left:50%;top:50%;width:2px;height:10%;transform-origin:50% 100%;background:rgba(255,255,255,.75)}
+    .tick.sub{height:6%;opacity:.45;background:rgba(255,255,255,.55)}
+    .tick.bold{height:12%;background:rgba(255,255,255,.9)}
+
+    /* numerals */
+    .numeral{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-weight:800;color:#fff;font-size:18px;letter-spacing:.3px;text-shadow:0 1px 2px rgba(0,0,0,.35);user-select:none;pointer-events:none}
+
+    /* day markers */
+    .label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:13px;color:#fff;user-select:none;pointer-events:none;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+    .label.day{font-weight:800}
+
+    /* hands */
+    .hand{position:absolute;left:50%;top:50%;transform-origin:50% 95%;transform:translate(-50%,-95%) rotate(0deg);border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+    .hand.day{width:8px;height:38%;background:#ffffff}
+    .hand.hour{width:10px;height:34%;background:#ffffff}
+    .hand.minute{width:6px;height:42%;background:#ffffff}
+
+    .hub{position:absolute;left:50%;top:50%;width:18px;height:18px;border-radius:50%;transform:translate(-50%,-50%);background:#fff;border:3px solid rgba(0,0,0,.25);box-shadow:0 0 0 3px rgba(255,255,255,.18), 0 6px 14px rgba(0,0,0,.45)}
+    .ring{position:absolute;inset:12px;border-radius:50%;border:1px solid rgba(255,255,255,.16)}
+
+    .caption{font-size:13px;color:#e7ebf3;opacity:.85}
+
+    .countdown{font-weight:800;font-size:18px;letter-spacing:.2px;margin-top:8px;text-align:center}
+    .subtle{font-size:13px;color:var(--muted);text-align:center}
+
+    /* CALENDAR */
+    .calendar{margin:12px 0 24px;display:grid;gap:14px}
+    .month{border:1px solid var(--glassBorder);border-radius:20px;overflow:hidden;background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .month header{padding:12px 14px;border-bottom:1px solid var(--glassBorder);background:linear-gradient(180deg,#141a28,#121825)}
+    .month h3{margin:0;font-size:16px;font-weight:800;color:#fff}
+    .grid{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--glassBorder)}
+    .dow{font-size:11px;color:#e0e6f0;text-align:center;padding:8px 0;background:#111725}
+    .cell{position:relative;min-height:64px;border-right:1px solid var(--glassBorder);border-bottom:1px solid var(--glassBorder);padding:6px}
+    .cell:last-child{border-right:none}
+    .date{font-size:11px;color:#e7edf7}
+    .fill{position:absolute;left:0;top:0;height:100%;width:0%;background:linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,.18));transition:width .3s ease}
+    .past .fill{width:100%}
+    .today{outline:2px solid #ffd06a;outline-offset:-2px}
+    .progress{margin-top:10px;height:10px;background:#0b0f17;border:1px solid var(--glassBorder);border-radius:999px;overflow:hidden}
+    .bar{height:100%;width:0%;background:linear-gradient(90deg,#ffffff,#d9e4ff)}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .kbd{font:12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;color:#d8deea;background:var(--glass);border:1px solid var(--glassBorder);border-bottom-width:2px;border-radius:10px;padding:6px 10px}
+    footer{margin:24px 0;color:#d8deea;font-size:12px}
+    @media (min-width:1000px){.calendar{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1 style="margin:0;font-weight:800;letter-spacing:.2px">Dual Project Time Visualization</h1>
+        <div class="meta">Local timezone: <span id="tz"></span></div>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab" id="controlsBtn" aria-controls="controlsPanel" aria-expanded="false">Controls</button>
+        <button class="tab active" data-target="#clock">Project Clock</button>
+        <button class="tab" data-target="#calendar">Project Calendar</button>
+      </nav>
+    </header>
+
+    <!-- CLOCK PAGE -->
+    <section id="clock" class="panel active" aria-labelledby="Project Clock">
+      <div class="clock-grid">
+        <!-- Days clock -->
+        <div class="clock-card">
+          <div class="clock-title">Days elapsed since start</div>
+          <div class="clock" id="clockDays" aria-label="Days Clock">
+            <div class="sweep" id="sweepDay"></div>
+            <div class="ring"></div>
+            <div id="ticksDay"></div>
+            <div id="labelDays"></div>
+            <div id="handDay" class="hand day" title="Day hand (elapsed days)"></div>
+            <div class="hub"></div>
+          </div>
+        </div>
+        <!-- Hours/Minutes clock -->
+        <div class="clock-card">
+          <div class="clock-title">Local time</div>
+          <div class="clock" id="clockTime" aria-label="Today Clock">
+            <div class="ring"></div>
+            <div id="ticksTime"></div>
+            <div id="numsTime"></div>
+            <div id="handHour" class="hand hour" title="Hour hand (local time)"></div>
+            <div id="handMinute" class="hand minute" title="Minute hand (local time)"></div>
+            <div class="hub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="countdown" id="countdown">—</div>
+      <div class="subtle" id="angles">—</div>
+    </section>
+
+    <!-- CALENDAR PAGE -->
+    <section id="calendar" class="panel" aria-labelledby="Project Calendar">
+      <div class="row">
+        <div class="meta">From <span id="metaStart">—</span> to <span id="metaGoal">—</span></div>
+        <div class="kbd">Total span: <span id="spanDays">—</span> days</div>
+      </div>
+      <div class="progress" aria-label="Overall progress">
+        <div class="bar" id="overallBar"></div>
+      </div>
+      <div class="calendar" id="calendarGrid"></div>
+    </section>
+
+    <footer>Keyboard: <span class="kbd">1</span> Project Clock · <span class="kbd">2</span> Project Calendar</footer>
+  </div>
+
+  <!-- Left overlay drawer + backdrop (outside container so it overlays) -->
+  <aside class="controls-panel" id="controlsPanel" aria-hidden="true">
+    <div class="controls-head">
+      <strong>Controls</strong>
+      <button class="controls-close" id="controlsClose" aria-label="Close controls">✕</button>
+    </div>
+    <section class="controls">
+      <div class="field">
+        <label for="goal">Goal date & time</label>
+        <input id="goal" type="datetime-local" />
+        <div class="meta">Example: 2025-12-06 00:00</div>
+      </div>
+      <div class="field">
+        <label for="start">Start date & time</label>
+        <input id="start" type="datetime-local" />
+        <div class="meta">Defaults to first setup. Stored locally.</div>
+      </div>
+      <div class="field">
+        <label>Preset</label>
+        <div class="inline">
+          <button class="tab" id="presetDec6">Set 06 Dec 2025</button>
+          <button class="tab" id="preset30d">+30 days</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Actions</label>
+        <div class="inline">
+          <button class="tab" id="save">Save</button>
+          <button class="tab" id="reset">Reset</button>
+        </div>
+        <div class="meta">Saved in localStorage only. Hotkeys: 1 Clock · 2 Calendar</div>
+      </div>
+    </section>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <script>
+  // ---------- Constants ----------
+  const DAY_MS = 24*60*60*1000;
+  const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  // ---------- Utilities ----------
+  const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
+  const fmtDateTime = (d)=> d ? new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(d) : '—';
+  const pad = (n)=> n.toString().padStart(2,'0');
+  const byId = (id)=>document.getElementById(id);
+
+  function getInputs(){
+    const goalVal = byId('goal')?.value;
+    theStart = byId('start')?.value;
+    const goal = goalVal? new Date(goalVal) : null;
+    const start = theStart? new Date(theStart) : null;
+    return { start, goal };
+  }
+
+  function saveState(){
+    const {start, goal} = getInputs();
+    const state = { startISO: start? new Date(start).toISOString(): null, goalISO: goal? new Date(goal).toISOString(): null };
+    localStorage.setItem('dualProjectTime', JSON.stringify(state));
+  }
+  function loadState(){
+    const s = localStorage.getItem('dualProjectTime');
+    if(!s) return {}; try{ return JSON.parse(s) }catch(e){ return {} }
+  }
+  function setInputDate(id, date){
+    const el = byId(id); if(!date||!el){ return; }
+    const local = new Date(date.getTime()-date.getTimezoneOffset()*60000);
+    el.value = local.toISOString().slice(0,16);
+  }
+
+  // ---------- Tabs, presets, keys ----------
+  document.querySelectorAll('.tab[data-target]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab[data-target]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const tgt = btn.getAttribute('data-target');
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      document.querySelector(tgt).classList.add('active');
+    });
+  });
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='1'){ document.querySelector('.tab[data-target="#clock"]').click(); }
+    if(e.key==='2'){ document.querySelector('.tab[data-target="#calendar"]').click(); }
+    if(e.key==='Escape') closeControls();
+  });
+
+  // Controls drawer toggling
+  const controlsBtn = byId('controlsBtn');
+  const controlsPanel = byId('controlsPanel');
+  const controlsClose = byId('controlsClose');
+  const scrim = byId('scrim');
+  function openControls(){ controlsPanel.classList.add('open'); controlsPanel.setAttribute('aria-hidden','false'); controlsBtn.setAttribute('aria-expanded','true'); scrim.classList.add('show'); }
+  function closeControls(){ controlsPanel.classList.remove('open'); controlsPanel.setAttribute('aria-hidden','true'); controlsBtn.setAttribute('aria-expanded','false'); scrim.classList.remove('show'); }
+  controlsBtn.addEventListener('click', ()=>{ (controlsPanel.classList.contains('open')? closeControls: openControls)(); });
+  controlsClose.addEventListener('click', closeControls);
+  scrim.addEventListener('click', closeControls);
+
+  document.addEventListener('click',(e)=>{
+    if(e.target?.id==='presetDec6'){ const d = new Date('2025-12-06T00:00:00'); setInputDate('goal', d); updateLabelsDay(); renderCalendar(); }
+    if(e.target?.id==='preset30d'){ const d = new Date(Date.now()+30*DAY_MS); setInputDate('goal', d); updateLabelsDay(); renderCalendar(); }
+    if(e.target?.id==='save'){ saveState(); updateLabelsDay(); renderCalendar(); }
+    if(e.target?.id==='reset'){ localStorage.removeItem('dualProjectTime'); location.reload(); }
+  });
+  document.addEventListener('change',(e)=>{
+    if(e.target?.id==='goal' || e.target?.id==='start'){ updateLabelsDay(); renderCalendar(); }
+  });
+
+  // ---------- Initialize ----------
+  (function init(){
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+    byId('tz').textContent = tz;
+
+    const state = loadState();
+    let start = state.startISO? new Date(state.startISO) : null;
+    let goal  = state.goalISO? new Date(state.goalISO)  : null;
+    if(!start){ start = new Date(); }
+    if(!goal){ goal = new Date('2025-12-06T00:00:00'); }
+
+    setInputDate('start', start);
+    setInputDate('goal', goal);
+
+    buildDayTicks();
+    buildTimeTicks();
+    buildTimeNumerals();
+    updateLabelsDay();
+    renderCalendar();
+    startLoop();
+  })();
+
+  // ---------- Clock ticks ----------
+  function buildDayTicks(){
+    const ticks = byId('ticksDay');
+    ticks.innerHTML = '';
+    for(let i=0;i<60;i++){
+      const t = document.createElement('div');
+      t.className = 'tick ' + (i%5===0? 'bold' : 'sub');
+      const angle = i*6; t.style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+      t.style.top = '50%'; t.style.left = '50%'; ticks.appendChild(t);
+    }
+  }
+  function buildTimeTicks(){
+    const ticks = byId('ticksTime');
+    ticks.innerHTML = '';
+    for(let i=0;i<60;i++){
+      const t = document.createElement('div');
+      t.className = 'tick ' + (i%5===0? 'bold' : 'sub');
+      const angle = i*6; t.style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+      t.style.top = '50%'; t.style.left = '50%'; ticks.appendChild(t);
+    }
+  }
+  function buildTimeNumerals(){
+    const layer = byId('numsTime'); layer.innerHTML='';
+    const size = byId('clockTime').getBoundingClientRect().width; const R = size*0.40;
+    for(let n=1;n<=12;n++){
+      const deg = n*30; const rad = (deg-90)*Math.PI/180; const x = R*Math.cos(rad), y = R*Math.sin(rad);
+      const d = document.createElement('div'); d.className='numeral'; d.textContent = n;
+      d.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      layer.appendChild(d);
+    }
+  }
+
+  // ---------- Labels (elapsed DAYS only) ----------
+  function updateLabelsDay(){
+    const layer = byId('labelDays'); layer.innerHTML = '';
+    const {start, goal} = getInputs();
+    const now = new Date(); const startEff = start || now; const endEff = goal || now;
+    const totalSpanDays = Math.max(0, Math.abs(endEff - startEff)/DAY_MS);
+
+    const size = byId('clockDays').getBoundingClientRect().width;
+    const R_outer = size*0.43; // day labels radius
+
+    const place = (deg, r, text)=>{
+      const d = document.createElement('div'); d.className = `label day`;
+      const rad = (deg-90)*Math.PI/180; // 0° at top
+      const x = r*Math.cos(rad), y = r*Math.sin(rad);
+      d.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      d.textContent = text; layer.appendChild(d);
+    };
+
+    // Day scale shows ELAPSED days since start: 0/25/50/75/Total
+    const d0 = 0;
+    const d25 = Math.round(totalSpanDays*0.25);
+    const d50 = Math.round(totalSpanDays*0.50);
+    const d75 = Math.round(totalSpanDays*0.75);
+    const dT = Math.round(totalSpanDays);
+    place(0,   R_outer, `${d0}d`);
+    place(90,  R_outer, `${d25}d`);
+    place(180, R_outer, `${d50}d`);
+    place(270, R_outer, `${d75}d`);
+    place(350, R_outer*0.96, `${dT}d`);
+  }
+
+  // ---------- Time math ----------
+  function projectState(){
+    const {start, goal} = getInputs(); const now = new Date(); if(!goal){ return {valid:false}; }
+    const startEff = start || now; const totalSpanMs = goal - startEff; const absSpanMs = Math.abs(totalSpanMs);
+    const elapsedMs = now - startEff; const remainingMs = goal - now;
+
+    const totalDays = absSpanMs / DAY_MS; const elapsedDays = Math.max(0, elapsedMs / DAY_MS);
+
+    // Day hand by fraction elapsed; analog time by local clock
+    const dayAngle = 360 * clamp(elapsedMs/Math.max(1,absSpanMs), 0, 1);
+    const hr = now.getHours()%12; const min = now.getMinutes(); const sec = now.getSeconds(); const ms  = now.getMilliseconds();
+    const hourAngle = (hr*30) + (min*0.5) + (sec*(0.5/60)) + (ms*(0.5/60000));
+    const minuteAngle = (min*6) + (sec*0.1) + (ms*(0.1/1000));
+
+    // countdown
+    let rem = Math.max(0, remainingMs); const d = Math.floor(rem / DAY_MS); rem -= d*DAY_MS;
+    const h = Math.floor(rem / (60*60*1000)); rem -= h*60*60*1000; const m = Math.floor(rem / (60*1000));
+
+    return { valid:true, now, startEff, goal, totalSpanMs, absSpanMs, elapsedMs, remainingMs, totalDays, elapsedDays, dayAngle, hourAngle, minuteAngle, countdown:{d,h,m} };
+  }
+
+  // ---------- Animation loop ----------
+  function startLoop(){
+    const hd = byId('handDay'); const hh = byId('handHour'); const hm = byId('handMinute');
+    const cdEl = byId('countdown'); const angEl = byId('angles'); const sweep = byId('sweepDay');
+    function frame(){
+      const ps = projectState(); if(ps.valid){
+        hd.style.transform = `translate(-50%,-95%) rotate(${ps.dayAngle}deg)`;
+        hh.style.transform = `translate(-50%,-95%) rotate(${ps.hourAngle}deg)`;
+        hm.style.transform = `translate(-50%,-95%) rotate(${ps.minuteAngle}deg)`;
+
+        // sweeping conic gradient following day hand from 0° (white on glass)
+        const end = ps.dayAngle.toFixed(2);
+        sweep.style.background = `conic-gradient(rgba(255,255,255,0.18) 0deg, rgba(255,255,255,0.35) ${end}deg, rgba(255,255,255,0.0) ${end}deg 360deg)`;
+
+        const cd = ps.countdown; cdEl.textContent = `${cd.d}d ${pad(cd.h)}h ${pad(cd.m)}m remaining`;
+        angEl.textContent = `Left: days elapsed · Right: local time`;
+
+        if(!frame._last || (ps.now - frame._last) > 900){
+          byId('metaStart').textContent = fmtDateTime(ps.startEff);
+          byId('metaGoal').textContent = fmtDateTime(ps.goal);
+          byId('spanDays').textContent = Math.abs(ps.totalDays).toFixed(2);
+          const progress = Math.min(100, Math.max(0, ((ps.now-ps.startEff)/Math.max(1, ps.goal-ps.startEff))*100 ));
+          byId('overallBar').style.width = progress + '%';
+          updateTodayFill(ps.now); frame._last = ps.now;
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Calendar rendering ----------
+  function renderCalendar(){
+    const grid = byId('calendarGrid'); grid.innerHTML = '';
+    const {start, goal} = getInputs(); const now = new Date(); const startEff = start || now;
+    const a = new Date(startEff); const b = new Date(goal || now); let from = a < b ? a : b; let to = a < b ? b : a;
+    from = new Date(from.getFullYear(), from.getMonth(), 1); to = new Date(to.getFullYear(), to.getMonth(), 1);
+    const months = []; const cur = new Date(from); while(cur <= to){ months.push(new Date(cur)); cur.setMonth(cur.getMonth()+1); }
+    months.forEach(m => grid.appendChild(renderMonth(m))); updateTodayFill(now);
+  }
+  function renderMonth(firstOfMonth){
+    const y = firstOfMonth.getFullYear(); const m = firstOfMonth.getMonth();
+    const wrap = document.createElement('section'); wrap.className = 'month';
+    const head = document.createElement('header'); const h = document.createElement('h3');
+    h.textContent = new Intl.DateTimeFormat(undefined,{month:'long',year:'numeric'}).format(firstOfMonth); head.appendChild(h);
+    const dow = document.createElement('div'); dow.className = 'grid'; for(const d of DOW){ const e = document.createElement('div'); e.className = 'dow'; e.textContent = d; dow.appendChild(e); }
+    const grid = document.createElement('div'); grid.className = 'grid';
+    const daysInMonth = new Date(y, m+1, 0).getDate(); const firstDow = ((new Date(y,m,1).getDay() + 6) % 7);
+    for(let i=0;i<firstDow;i++){ const blank = document.createElement('div'); blank.className = 'cell'; grid.appendChild(blank); }
+    for(let d=1; d<=daysInMonth; d++){
+      const cell = document.createElement('div'); cell.className = 'cell'; cell.dataset.date = new Date(y,m,d).toISOString();
+      const fill = document.createElement('div'); fill.className = 'fill'; cell.appendChild(fill);
+      const label = document.createElement('div'); label.className = 'date'; label.textContent = d; cell.appendChild(label);
+      grid.appendChild(cell);
+    }
+    wrap.appendChild(head); wrap.appendChild(dow); wrap.appendChild(grid); return wrap;
+  }
+  function isSameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+  function updateTodayFill(now){
+    const cells = document.querySelectorAll('.cell[data-date]'); const {start, goal} = getInputs(); const startEff = start || now;
+    cells.forEach(cell=>{
+      const d = new Date(cell.dataset.date); const fill = cell.querySelector('.fill'); cell.classList.remove('past','today');
+      if(d < new Date(now.getFullYear(), now.getMonth(), now.getDate())){ cell.classList.add('past'); fill.style.width = '100%'; }
+      else if (isSameDay(d, now)){ cell.classList.add('today'); const frac = (now - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / (24*60*60*1000); fill.style.width = (frac*100).toFixed(2) + '%'; }
+      else { fill.style.width = '0%'; }
+      if(goal){ const total = goal - startEff; const atMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const prog = clamp((atMidnight - startEff) / Math.max(1, Math.abs(total)), 0, 1); fill.style.background = `linear-gradient(90deg, rgba(255,255,255,${0.10+0.35*prog}), rgba(255,255,255,${0.12+0.40*prog}))`; }
+    });
+  }
+
+  // ---------- Self-tests ----------
+  (function runSelfTests(){
+    try{
+      console.assert(Array.isArray(DOW) && DOW.length===7, 'DOW len');
+      const a = new Date('2025-01-01T10:00:00'); const b = new Date('2025-01-01T23:59:59'); const c = new Date('2025-01-02T00:00:00');
+      console.assert(isSameDay(a,b)===true, 'isSameDay true'); console.assert(isSameDay(a,c)===false,'isSameDay false');
+      updateLabelsDay(); const labels = byId('labelDays').querySelectorAll('.label.day'); console.assert(labels.length>=4,'day labels present');
+      const nums = byId('numsTime').querySelectorAll('.numeral'); console.assert(nums.length===12,'12 numerals present');
+      console.info('[Dual Project Time] self-tests ok');
+    }catch(e){ console.error('[Dual Project Time] self-tests error', e); }
+  })();
+
+  window.addEventListener('resize', ()=>{ buildTimeNumerals(); updateLabelsDay(); });
+  </script>
+</body>
+</html>
