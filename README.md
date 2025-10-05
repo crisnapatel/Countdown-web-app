@@ -39,7 +39,7 @@ The entire app lives in `dual_project_time_visualization_clock_calendar.html`. A
 If you decide to fork this for your own lab, let me know what you build with it!
 
 ## How it looks like
-![Clock](Images/Clock)
-![Calendar](Images/Calendar)
+![Clock](Images/Clock.png)
+![Calendar](Images/Calendar.png)
 
 Credits: GPT, Perplexity.
