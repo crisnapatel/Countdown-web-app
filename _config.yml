@@ -1,0 +1,10 @@
+# Jekyll configuration for the Countdown web app site
+name: Countdown Web App
+url: ""  # Set by GitHub Pages deployment
+baseurl: ""
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - README.md
