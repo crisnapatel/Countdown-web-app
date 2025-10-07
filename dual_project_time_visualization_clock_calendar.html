@@ -83,6 +83,11 @@
     .fill{position:absolute;left:0;top:0;height:100%;width:0%;background:linear-gradient(90deg, rgba(255,255,255,.12), rgba(255,255,255,.18));transition:width .3s ease}
     .past .fill{width:100%}
     .today{outline:2px solid #ffd06a;outline-offset:-2px}
+    .goal::after{
+      content:"";position:absolute;top:6px;bottom:6px;right:4px;width:3px;
+      background:#ef4444;border-radius:2px;pointer-events:none
+    }
+
     .progress{margin-top:10px;height:10px;background:#0b0f17;border:1px solid var(--glassBorder);border-radius:999px;overflow:hidden}
     .bar{height:100%;width:0%;background:linear-gradient(90deg,#ffffff,#d9e4ff)}
     .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -426,11 +431,24 @@
   function updateTodayFill(now){
     const cells = document.querySelectorAll('.cell[data-date]'); const {start, goal} = getInputs(); const startEff = start || now;
     cells.forEach(cell=>{
-      const d = new Date(cell.dataset.date); const fill = cell.querySelector('.fill'); cell.classList.remove('past','today');
+      const d = new Date(cell.dataset.date); const fill = cell.querySelector('.fill'); cell.classList.remove('past','today','goal'); if(goal && isSameDay(d, goal)){ cell.classList.add('goal'); }
       if(d < new Date(now.getFullYear(), now.getMonth(), now.getDate())){ cell.classList.add('past'); fill.style.width = '100%'; }
       else if (isSameDay(d, now)){ cell.classList.add('today'); const frac = (now - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / (24*60*60*1000); fill.style.width = (frac*100).toFixed(2) + '%'; }
       else { fill.style.width = '0%'; }
-      if(goal){ const total = goal - startEff; const atMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const prog = clamp((atMidnight - startEff) / Math.max(1, Math.abs(total)), 0, 1); fill.style.background = `linear-gradient(90deg, rgba(255,255,255,${0.10+0.35*prog}), rgba(255,255,255,${0.12+0.40*prog}))`; }
+      
+      // dynamic color based on proximity to deadline
+      if(goal && startEff){
+        const total = Math.max(1, goal - startEff);
+        const elapsed = Math.min(Math.max(0, now - startEff), total);
+        const heat = elapsed / total; // 0 at start -> 1 at goal
+        const mix = (a,b,t)=>Math.round(a + (b-a)*t);
+        // base: teal (94,234,212), danger: red (239,68,68)
+        const r = mix(94,239,heat), g = mix(234,68,heat), b = mix(212,68,heat);
+        const a1 = (0.18 + 0.22*heat).toFixed(3);
+        const a2 = (0.28 + 0.30*heat).toFixed(3);
+        fill.style.background = `linear-gradient(90deg, rgba(${r},${g},${b},${a1}), rgba(${r},${g},${b},${a2}))`;
+      }
+if(goal){ const total = goal - startEff; const atMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const prog = clamp((atMidnight - startEff) / Math.max(1, Math.abs(total)), 0, 1); fill.style.background = `linear-gradient(90deg, rgba(255,255,255,${0.10+0.35*prog}), rgba(255,255,255,${0.12+0.40*prog}))`; }
     });
   }
 
