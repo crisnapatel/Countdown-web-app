@@ -39,6 +39,7 @@ The entire app lives in `dual_project_time_visualization_clock_calendar.html`. A
 If you decide to fork this for your own lab, let me know what you build with it!
 
 ## How it looks like
+Go to : https://crisnapatel.github.io/Countdown-web-app/dual_project_time_visualization_clock_calendar.html
 ![Clock](Images/Clock.png)
 ![Calendar](Images/Calendar.png)
 
